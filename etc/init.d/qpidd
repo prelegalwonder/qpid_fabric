@@ -37,8 +37,8 @@
 
 prog=qpidd
 lockfile=/var/lock/subsys/$prog
-PID_DIR=/var/run/qpidd
 pidfile=/var/run/qpidd.pid
+user=root			# Run qpidd as root.
 
 # Source function library.
 . /etc/rc.d/init.d/functions
@@ -56,7 +56,7 @@ if [[ !(-x /usr/sbin/$prog) ]] ; then
 fi
 
 #ensure user has sufficient permissions
-runuser -s /bin/sh root -c "echo x > /dev/null" 2> /dev/null || RETVAL=4
+runuser -s /bin/sh $user -c "echo x > /dev/null" 2> /dev/null || RETVAL=4
 if [ $RETVAL = 4 ]; then
     echo "user had insufficient privilege";
     exit $RETVAL
@@ -65,23 +65,22 @@ fi
 start() {
         [[ $QPID_DATA_DIR ]] || QPID_DATA_DIR=/var/lib/qpidd
         echo -n $"Starting Qpid AMQP daemon: "
-	daemon --pidfile $pidfile --check $prog --user root /usr/sbin/$prog --data-dir $QPID_DATA_DIR --pid-dir $PID_DIR --daemon $QPIDD_OPTIONS
+	daemon --pidfile $pidfile --check $prog --user $user /usr/sbin/$prog --data-dir $QPID_DATA_DIR --daemon $QPIDD_OPTIONS
 	RETVAL=$?
 	echo
 	[ $RETVAL = 0 ] && touch $lockfile
 	if [ $RETVAL = 0 ]; then
 	    touch $pidfile
-	    chown root.root $pidfile
+	    chown $user.$user $pidfile
             [ -x /sbin/restorecon ] && /sbin/restorecon $pidfile
-	    runuser - -s /bin/sh root -c "/usr/sbin/$prog --pid-dir $PID_DIR --check > $pidfile"
+	    runuser - -s /bin/sh $user -c "/usr/sbin/$prog --check > $pidfile"
 	fi
 	return $RETVAL
 }
 
 stop() {
 	echo -n $"Stopping Qpid AMQP daemon: "
-	runuser - -s /bin/sh root -c "/usr/sbin/$prog --pid-dir $PID_DIR -q"
-	#killproc -p ${pidfile} $prog
+	killproc -p ${pidfile} $prog
 	RETVAL=$?
 	echo
 	[ $RETVAL = 0 ] && rm -f ${lockfile} ${pidfile}
